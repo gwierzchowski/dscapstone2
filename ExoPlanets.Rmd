@@ -32,7 +32,7 @@ install.packages("rmarkdown")
 
 To create this report I used following programs and R packages:
 
-* R Base - version 3.6.0
+* R Base - version 3.6.1
 * `tidyverse` - version 1.2.1
 * `gridExtra` - version 2.3
 * `h2o` - version 3.22.1.1
@@ -53,20 +53,20 @@ library(gridExtra)
 H2O
 -----------
 
-In my work I wanted to use machine learning. Having bad experiece from prevoius MovieLens project, where some of my caclulations were running for several hours working only on 1 CPU core, and having very limited time for this project (about one week), I decided to try package which utilizes multithreading. One of the world leading frameworks for machine learning is *H2O*: <https://www.h2o.ai/>. This framework is writen in Java and there is tiny wrapper for R language available as `h2o` package. It works in following way. User from his R code loads the package and initalizes engine by invoking `h2o.init()` call. This either starts on local computer *H2O* server or with proper configuration may connect to server working on remote machine. Then user using *H2O* methods can load data or perform operations on it including model creation, training and validation. Every such operation is being done at server side (by multithreaded Java code) and computer resources are taken at server side. This means that if all this is run on one box, it must have enough RAM memory. I have run it on my personal laptop with 8 CPU cores and 16GB RAM - and it was quite sufficient for the task.
+In my work I wanted to use machine learning. Having bad experiece from previous MovieLens project, where some of my calculations were running for several hours using only 1 CPU core, and having very limited time for this project (about one week), I decided to try package which utilizes multithreading. One of the world leading frameworks for machine learning is *H2O*: <https://www.h2o.ai/>. This framework is writen in Java and there is tiny wrapper for R language available as `h2o` package. It works in following way. User from his R code loads the package and initalizes engine by invoking `h2o.init()` call. This either starts on local computer *H2O* server or with proper configuration may connect to server working on remote machine. Then user using *H2O* methods can load data or perform operations on it including tidying data, model creation, training and validation. Every such operation is being done at server side (by multithreaded Java code) and computer resources are taken at server side. This means that if all this is run on one box, it must have enough RAM memory to support both *H2O* server and R local script. I have run it on my personal laptop with 8 CPU cores and 16GB RAM - and it was quite sufficient for the task.
 
-While *H2O* server is running, it is possible to connect to it from web browser and inspect objects, see jobs' statuses, or even perform machine learning operations entirely from GUI, and at the end also export selected model as Java sorce code possibe to deploy on other systems. During this project I however did not used any of those operations, doing everything completly in R.
+When *H2O* server is running, it is possible to connect to it from web browser and inspect objects, lookup job statuses, or even perform machine learning operations entirely from GUI, and at the end also export selected model as Java sorce code possible to deploy on other systems. During this project I however did not used any of those operations, doing everything completly in R.
 
 Data
 -----------
 
 I decided to use one of the data files published on *Kaggle* web service. 
-Data are described and can be downoaded from following page: <https://www.kaggle.com/keplersmachines/kepler-labelled-time-series-data>.
-It is required to create free indywidual account on *Kaggle* service before it allows you to donload data.
-So if somebody wishes to run code enbedded into this document, he should download the data files by himself.
-Data are being downloaded as zip-file which containes two files: `exoTrain.csv` and `exoTest.csv`.
+Data are described and can be downloaded from following page: <https://www.kaggle.com/keplersmachines/kepler-labelled-time-series-data>.
+It is required to create free personal account on *Kaggle* service before it allows you to download data. I'm not authorized to re-distribute those data.
+So if somebody wishes to run the code enbedded into this document, he should download the data files by himself.
+Data are available for download as zip-file which containes two files: `exoTrain.csv` and `exoTest.csv`.
 As names suggest they store training and test data and are in CSV format.
-My program assumes that they are placed in `Data` subfolder of folder where this document source is stored.
+My program assumes that they are placed in `Data` subfolder of folder where this document source (i.e. .Rmd file) is stored.
 
 Introduction
 ==============
@@ -75,22 +75,22 @@ Problem description
 -------------------
 
 The goal of the project is to try programatically recognize stars which could potentially have one or more exoplanets.
-Here is extract from *Kaggle*:
+Here is extracted description from *Kaggle*:
 
 > The data describe the change in flux (light intensity) of several thousand stars. Each star has a binary label of 2 or 1. 2 indicated that that the star is confirmed to have at least one exoplanet in orbit; some observations are in fact multi-planet systems.
 
 > As you can imagine, planets themselves do not emit light, but the stars that they orbit do. If said star is watched over several months or years, there may be a regular 'dimming' of the flux (the light intensity). This is evidence that there may be an orbiting body around the star; such a star could be considered to be a 'candidate' system. Further study of our candidate system, for example by a satellite that captures light at a different wavelength, could solidify the belief that the candidate can in fact be 'confirmed'.
 
-Evaluation Model Metrics
+Model Evaluation Metrics
 -------------------------
 
-Evaluation metric measures how good is particular model in estimating results. There are many kinds of them in use. We have to select which one in most important for us, and which is most approprate for kind of our problem. In our problem we predict if particular star may have an orbiting exoplanet or not. This is so called binary clasification problem. Clasification - because our result belongs to fixed set of values. Binary - because we can have only two values of result. Additional characteristic of our problem is very big disproportion of one result over other in data (called *prevalence* in course materials). 
+Evaluation metric measures how good is particular model in estimating results. There are many kinds of them in use. We have to select which one is most important for us, and which is most appropriate for our problem. Here we predict if particular star may have an orbiting exoplanet or not. This is so called binary clasification problem. Clasification - because our result belongs to fixed set of values. Binary - because we can have only two values of result. Additional characteristic of our problem is very big disproportion of one result over other in data (called *prevalence* in course materials) due to fact that that only small fraction of stars are suspected to have planets.
 
-I have reviewed different metrics and fond out that most recommended for such case is metric called MCC (Matthews correlation coefficient). Quoting Wikipedia:
+I have reviewed different metrics and found out that most recommended for such case is metric called MCC (Matthews correlation coefficient). Quoting Wikipedia:
 
 > The MCC is in essence a correlation coefficient between the observed and predicted binary classifications; it returns a value between -1 and +1. A coefficient of +1 represents a perfect prediction, 0 no better than random prediction and -1 indicates total disagreement between prediction and observation.
 
-It can be calculated from comfusion matrix using formula (abbreviations as in course material):
+It can be calculated from confusion matrix using formula (abbreviations as in course material):
 $$\text{MCC}=\frac{TP\times TN-FP\times FN}{\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}$$
 Meaning "star has exoplanet" as positive I will be also paying attention to *Precision*. I imagine that a stream of observations is being at first exposed to "Exoplanet Hunting" models, and then stars appointed by models are further investigated. This investigation engages time of scientists, devices, power etc. so is costfull. Therefore it would be money lost if model would predict too much false positives. Precision can be calculaed as:
 $$\text{PPV}=\frac{TP}{TP+FP}$$
@@ -106,13 +106,13 @@ In this report I will use following symbols:
 Work plan
 ---------
 
-As noted earlier I had very limited time for this project, so I did not spent too much time on searching how others approach the problem. I started to work directly with data. From problem nature I knew that exoplanet should manifest as periodical and short flux level fluctuations (peaks to down). Here I specify my approach:
+As noted earlier I had very limited time for this project, so I did not spent too much time on searching how others approach the problem. I started to work rigth away with the data. From problem nature I knew that exoplanet should manifest as periodical and short flux level fluctuations (peaks to down). Here I specify my approach:
 
-- load the data and made review of graphs that shows measured flux levels; check both stars labeled as having and not having exoplanets
+- load the data and review the graphs that shows measured flux levels; check both stars labeled as having and not having exoplanets
 - try to find any pattern in exoplanet charts
 - try to matematically describe this pattern, and code respective additional predictors.
 - try to use machine learning algorithms to transform those predictors into clasification result
-- select algorithm that up from produces best results and try to further tune it changind some parameters or using cross-validation to estimate them; use ensenbling if there are few best models.
+- select algorithm that up-front (with default parameters) produces best results and try to further tune it changing some parameters or using cross-validation to estimate them; use ensembling if there are few best models.
 
 Data contain large number of columns (predictors). And those columns represent time-series observations, so I did not meant that some of them are generally more important then others or some relate on others. So I did not considered that any kind of processes like factorization, dimension reduction etc. would be approprate here. Also because of number of columns I did not think that using them directly as imputs for machine learning might give any good results.
 
@@ -129,14 +129,14 @@ WORK_WITH <- 1.0         # (float) Which fraction of data to work with
 RANDOM_SAMPLES <- T      # (T/F) Set this to TRUE if you want to see different flux graphs 
                          #   at every time you generate document
 SAMPLES_NO <- 18         # (int) Number of samples to present in document
-SKIP_CALC <- T           # (T/F) Set this if you prevoiusly run calculations and saved them in file
+SKIP_CALC <- T           # (T/F) Set this if you previously run calculations and saved them in file
                          #   .RData files needs to be manually placed in RData subfolder
 ML_ALGORITHM_TEST_SIZE <- 1000 # We will check different ML algorithms with this size sample
 
 # Parameters that affect model, calculations, etc.
 OUTLINER_THRES_HI <- 5.0 # (float) Outliner if higher then OUTLINER_THRES_HI*sd
 OUTLINER_THRES_LO <- 5.0 # (float) Outliner if lower then OUTLINER_THRES_LO*sd
-NORMAL_THRES <- 1.7      # (float) Planet suspition if outside NORMAL_THRES*sd
+NORMAL_THRES <- 1.7      # (float) Planet suspition if below NORMAL_THRES*sd
 LEVELS_NO <- 4           # (int) We create predictors for this number of levels
                          #   from NORMAL_THRES to OUTLINER_THRES_LO
 DISPLAY_LEVEL <- 1       # (int) Prepare charts for this level (1=NORMAL_THRES)
@@ -231,9 +231,9 @@ rm(is_exo, means_ext, sd_ext)
 Data retrieval and preparation
 ------------------------------
 
-To prevent this dicument expanding to large size I include here very little code listings. Full program code is avaialble in source file of this document (the .Rmd file).
+To prevent this document expanding to large size I include here very little code listings. Full program code is avaialble in source file of this document (the .Rmd file).
 
-Data were loaded using `h2o.importFile()` function which transformed it into `H2OFrame` object. It is possible to operate directly on such object, but I found it very slow when it comes to setting indywidual data inside records (probaly bacause of netwrk call associated to every such operation). Such H2O objects are rather intended to running bulk calculation operations at once which could be done entirely at H2O server side (like model training). So I then converted `H2OFrame` object into regular R `data.frame`, and performed operations on it using "well known" `dplyr` package. Once I performed all calculations and created new set of predictors I then transformed new `data.frame` object to YYY and used this as input for creating and training models.
+Data were loaded using `h2o.importFile()` function which transformed it into `H2OFrame` object. It is possible to operate directly on such object, but I found it very slow when it comes to setting particular data inside records (probaly bacause of network message exchange associated to every such operation). Such H2O objects are rather intended to running bulk calculation operations at once which could be done entirely at H2O server side (like model training). So I then converted `H2OFrame` object into regular R `data.frame`, and performed operations on it using "well known" `dplyr` package. Once I performed all calculations and created new set of predictors I then transformed new `data.frame` object to `H2OFrame` and used this as input for creating and training models.
 
 Basic characteristic of data
 ----------------------------
@@ -252,10 +252,10 @@ Notes:
 
 Check if there are invalid observations inside the data:
 ```{r, echo=TRUE}
-sum(is.na(exoTrainData_ext))
+sum(is.na(exoTrainData_ext_df))
 ```
 
-Propotion of positive vs. negative results:
+Proportion of positive vs. negative results:
 ```{r, echo=TRUE}
 sum(exoTrainData_ext_df$LABEL == 0) / sum(exoTrainData_ext_df$LABEL == 1)
 ```
@@ -265,36 +265,34 @@ Initial overview of data
 
 Now I wanted to see how the data looks like. Below I present samples from flux values of stars of each category: without and with exoplanets. `r SAMPLES_NO` stars of each category was randomly selected from training data set.
 
-Actually I have done those charts several times, each time selecting different stars. I noticed that there are some quite rate observations that are unordinary high or low. I treated them as outliners possibly caused by some measure errors. I decided to remove them from data - but only those very high (i.e. bigger than `r OUTLINER_THRES_HI` times standard deviation), because I was worying that I can accidentally remove important "down peaks" which may designate a present exoplanet. I replaced outliner value with all observations mean value. Better approach would be to take a local mean, but I did not do it for performance reasons, and also because - it does not really matter with this number of observations. 
+Actually I have done those charts several times, each time selecting different stars. I noticed that there are some quite rate observations that are unordinary high or low. I treated them as outliners possibly caused by some measure errors. I decided to remove them from data - but only those very high (i.e. bigger than `r OUTLINER_THRES_HI` times standard deviation), because I was worying that I can accidentally remove important "down peaks" which may designate a present exoplanet. I replaced outliner value with overall mean value. Better approach would be to take a local mean, but I did not do it for performance reasons, and also because - it does not really matter with this number of observations. 
 
-Charts at left side present data before outliners removal, at right after. Yellow lines mark outliners cut-off level: $\mu\pm `r OUTLINER_THRES_HI`\sigma$. Red lines mark level that I will use later as cut-off for creating new predictors: $\mu\pm `r NORMAL_THRES`\sigma$
+Charts at left side present data before outliners removal, at right side - after. Yellow lines mark outliners cut-off level: $\mu\pm `r OUTLINER_THRES_HI`\sigma$. Red lines mark level that I will use later as cut-off for creating new predictors: $\mu\pm `r NORMAL_THRES`\sigma$
 
 ```{r remove-outliners}
-if (!SKIP_CALC) {
+if (SKIP_CALC && file.exists("RData/exoTrainData_ext_df2.RData")) {
+  load("RData/exoTrainData_ext_df2.RData")
+} else {
   exoTrainData_ext_df2 <- exoTrainData_ext_df
   tmp <-lapply(1:nrow(exoTrainData_ext_df), function(star) {
     out_idx <- c(FALSE, exoTrainData_ext_df[star, flux_idx] > exoTrainData_ext_df[star,]$m + OUTLINER_THRES_HI*exoTrainData_ext_df[star,]$sd)
     if (sum(out_idx) > 0) {
-      #cat("Star", star, "removed", sum(out_idx), " outliners\n")
-      # Note: <<- means that we are modifying variable from external scope
-      exoTrainData_ext_df2[star, out_idx] <<- exoTrainData_ext_df[star,]$m
+       #cat("Star", star, "removed", sum(out_idx), " outliners\n")
+       # Note: <<- means that we are modifying variable from external scope
+       exoTrainData_ext_df2[star, out_idx] <<- exoTrainData_ext_df[star,]$m
     }
   });
-  #TODO: Clarify why it does not work
-  #means_ext2 <- sapply(seq(1, nrow(exoTrainData_ext_df2)), function(i) {
-  #  mean(exoTrainData_ext_df2[i,flux_idx])
-  #})
+  # After we removed outliners, we recalculate mean and sd.
+  means_ext2 <- sapply(seq(1, nrow(exoTrainData_ext_df2)), function(i) {
+    mean(as.matrix(exoTrainData_ext_df2[i,flux_idx]))
+  })
   sd_ext <- sapply(seq(1, nrow(exoTrainData_ext_df2)), function(i) {
     sd(exoTrainData_ext_df2[i,flux_idx])
   })
   exoTrainData_ext_df2 <- exoTrainData_ext_df2 %>%
-    mutate(sd = sd_ext)
-  rm(tmp, sd_ext)
+    mutate(m = means_ext2, sd = sd_ext)
+  rm(tmp, means_ext2, sd_ext)
   save(exoTrainData_ext_df2, file = "exoTrainData_ext_df2.RData")
-} else {
-  if (file.exists("RData/exoTrainData_ext_df2.RData")) {
-    load("RData/exoTrainData_ext_df2.RData")
-  }
 }
 
 # Extract of non-exoplanet star
@@ -389,24 +387,26 @@ marrangeGrob(p3, nrow=3, ncol=1, top = NULL)
 Custom Predictors
 =================
 
-Looking at graphs presented in prevoius section I noticed that flux chart of stars that have exoplanets little bit resemble shape of "rake and teeth", where star flux decreases periodically (the teeths). So I will try to calculate predictors which will try to catch this effect. I will select abservations which are below certain level, then try to group the ones which are close togather (parameter WINDOW_H) (meaning one planet pass before the star). Then I capture 3 statistics:
+Looking at graphs presented in previous section I noticed that flux chart of stars that have exoplanets little bit resemble shape of "rake with teeth", where star flux decreases periodically (the teeths). So I will try to calculate predictors which will try to catch this effect. I will select abservations which are below certain level, then try to group the ones which are close together (parameter WINDOW_H) (meaning one planet pass before the star). Then I capture 3 statistics:
 
 - number of such groups (aka teeths)
-- standard deviation of distances between groups (the less, the more regular "teeths"" are)
-- number of rounded different distances between groups (the less, the more regular "teeths"" are)
+- standard deviation of distances between groups (the less, the more regular "teeths" are)
+- number of rounded different distances between groups (the less, the more regular "teeths" are)
 
 Then add them as my predictors. I'm doing this for configurable number of levels (parameter LEVELS_NO) from $\mu - `r NORMAL_THRES`\sigma$ to $\mu - `r OUTLINER_THRES_LO`\sigma$ in equal steps. For more details about used algorithm please look at provided source code.
 
 ![The Rake (my own 'device' :) ](./rake.jpg "The Rake")
 
 
-Below charts present sample of stars (the same stars as in prevoius section) with marked one selected level: level #`r DISPLAY_LEVEL`. Red line mark level, and on the right there are listed first and third predicate (as above). One may optically verify it against the chart. Comparing non-exoplanet and exoplanet stars one may notice that those predictors used to be equal each other for non-exoplanet while are more frequently inequal for stars with exoplanets. This is promising result which I hope made those predictors usable by ML models.
+Below charts present sample of stars (the same stars as in previous section) with marked one selected level: level #`r DISPLAY_LEVEL`. Red line mark level, and on the right there are listed first and third predicate (as above). One may optically verify it against the chart. Comparing non-exoplanet and exoplanet stars one may notice that those predictors used to be equal each other for non-exoplanet while are more frequently inequal for stars with exoplanets. This is promising result which I hope made those predictors usable by ML models.
 
 ```{r calculate-predictors}
 # Create vector of Levels for which we create predictors
 Levels <- seq(from=NORMAL_THRES, to=OUTLINER_THRES_LO, length.out = LEVELS_NO)
 
-if (!SKIP_CALC) {
+if (SKIP_CALC && file.exists("RData/exoTrainData_ext_df3.RData")) {
+  load("RData/exoTrainData_ext_df3.RData")
+} else {
   # Data frame to store our predictors
   exoTrainData_ext_df3 <- data.frame(LABEL=exoTrainData_ext_df2$LABEL, SD=exoTrainData_ext_df2$sd)
   
@@ -426,12 +426,12 @@ if (!SKIP_CALC) {
     # col1: flux_idx(i.e. time) - for which flux value is minimal; 
     # col2: flux_idx(i.e. time) - current; 
     # col3: flux value; 
-    # col4: distance to prevoius teeth (for first distance to last modulo length)
+    # col4: distance to previous teeth (for first distance to last modulo length)
     # col5: col4 rounded by TEETH_DIST_ROUND - we do count_distinct againt this
     teeths <- matrix(nrow=length(flux_idx), ncol = 5) 
     tmp <-lapply(1:nrow(exoTrainData_ext_df2), function(star) {
-      # Note: This probably could be improved: every next level is lower then prevoius one
-      #       so we could use some values calculated in prevoius loops.
+      # Note: This probably could be improved: every next level is lower then previous one
+      #       so we could use some values calculated in previous loops.
       #
       # Create temporary data frame and matrix to help in performing calculations
       # dplyr will filter-out necessary points faster then if we'd do it in plain R here.
@@ -447,7 +447,7 @@ if (!SKIP_CALC) {
           } else {
             # Check if we are considering this paek to be the same teeth
             if (abs(teeths[idx,2] - flux_peeks_df[flx,]$idx) > WINDOW_H) {
-              # Too far from prevoius peak, initiate new teeth, store candidate values
+              # Too far from previous peak, initiate new teeth, store candidate values
               if (idx > 1) {
                 teeths[idx,4] <<- teeths[idx,1] - teeths[idx-1,1]
                 teeths[idx,5] <<- as.integer(teeths[idx,4] / TEETH_DIST_ROUND) * TEETH_DIST_ROUND
@@ -489,10 +489,6 @@ if (!SKIP_CALC) {
   # Clean unnecessary data and save results for future
   rm(teeths, pred, tmp)
   save(exoTrainData_ext_df3, file = "exoTrainData_ext_df3.RData")
-} else {
-  if (file.exists("RData/exoTrainData_ext_df3.RData")) {
-    load("RData/exoTrainData_ext_df3.RData")
-  }
 }
 
 # Extract of non-exoplanet star
@@ -506,9 +502,11 @@ exoTrainData_E_ext_df3 <- exoTrainData_ext_df3 %>%
 
 ```{r calculate-predictors-TESTDATA}
 # TODO: Make it better - remove code duplication
-# Do similar operations for test data if necessary (see comments in prevoius section)
+# Do similar operations for test data if necessary (see comments in previous section)
 if (!is.null(exoTestData_df)) {
-  if (!SKIP_CALC) {
+  if (SKIP_CALC && file.exists("RData/exoTestData_df3.RData")) {
+    load("RData/exoTestData_df3.RData")
+  } else {
     exoTestData_df3 <- data.frame(LABEL=exoTestData_df$LABEL, SD=exoTestData_df$sd)
     
     tmp <-lapply(1:length(Levels), function(iLevel) {
@@ -566,10 +564,6 @@ if (!is.null(exoTestData_df)) {
     # No need to make filtered data frames for test set.
     rm(flux_peeks_df, teeths, pred, tmp)
     save(exoTestData_df3, file = "exoTestData_df3.RData")
-  } else {
-    if (file.exists("RData/exoTestData_df3.RData")) {
-      load("RData/exoTestData_df3.RData")
-    }
   }
 } else {
   exoTestData_df3 <- NULL
@@ -823,18 +817,18 @@ Because of those constraints I did not managed to realize some ideas that I init
 - I have set the model parameters (listed in "Data Exploration" section) using intuition, common sense and little experiments. Some of them should be really estimated by true trials using cross validation on parameters grid.
 - Deeper investigate machine learning algorithms and possible to use parameters. Perform more experiments in this area.
 - Try to use ensembling algorithm using best performing ML algorithms.
-- I have a feeling that deep learning algorithm may produce good results when applied to row data (instead of my calculated predictors). This should be verified. Flux chart might be treated as image (of rake) to recognize.
+- I have a feeling that deep learning algorithm may produce good results when applied to raw data (instead of my calculated predictors). This should be verified. Flux chart might be treated as image (of rake) to recognize.
 - There is a mathematical discipline that deals with functions distributing into harmonic compoments. I have a feeling that it could be somehow applied here. I mean that flux charts of stars with exoplanets are more cyclic and should be better approximated by harmonic components.
-- Sole Internet / literature reaserch sould be done, as our problem seems to be well known and kind of hot topic.
+- Some Internet / literature reaserch sould be done, as our problem seems to be well known and kind of hot topic.
 
 ## Final word
 
-I would like to take opportunity and express my appreciation to all persons imvolved into preparation of this excelent "Data Scientists Proffesional" series of courses, espacially to _prof. Rafael A. Irizarry_ - the main author. I am also very grateful that this course and all materials have been made public.
+I would like to take opportunity and express my appreciation to all persons imvolved into preparation of this excelent "Data Scientists Proffesional" series of courses, espacially to _prof. Rafael A. Irizarry_ - the main author. I am also very grateful that this course and all materials have been made publicly available .
 
-I have learned a lot. Gained also some hands-on experiance with R programming language which I did not known before.
+I have learned a lot. Gained also some hands-on experiance with R programming language which I did not know before.
 I like very much RStudio programming environment, but honestly I'm not very big fan of R language, espacially because of its strange 
 syntax, unclear type system, sometimes not clear help descriptions for packages, but mostly for slowness and one-thread approach.
-Looking forward I think I will be trying to use languages like Julia or Python for my next data science related learning efforts. I think I will continue learning H2O framework. I may be also continuing work on this exoplanet project - check out my githab repository for any future updates.
+Looking forward I think I will be trying to use languages like Julia or Python for my next data science related learning efforts. I think I will continue learning of H2O framework. I may be also continuing work on this exoplanet project - check out my github repository for future updates.
 
 ```{r cleanup, cache=FALSE, include=FALSE}
 h2o.shutdown(prompt = F)
